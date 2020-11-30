@@ -1,7 +1,7 @@
 {
-  "name": "reshuffle-connectorname-connector",
+  "name": "reshuffle-quickbooks-connector",
   "version": "0.0.1",
-  "description": "A Reshuffle _CONNECTOR_NAME_ connector",
+  "description": "A Reshuffle Quickbooks connector",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -13,12 +13,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/reshufflehq/reshuffle-_CONNECTOR_NAME_-connector.git"
+    "url": "git+https://github.com/reshufflehq/reshuffle-quickbooks-connector.git"
   },
   "keywords": [
     "Reshuffle",
     "integrations",
-    "workflows"
+    "workflows",
+    "quickbooks"
   ],
   "author": "Reshuffle",
   "license": "MIT",
@@ -27,6 +28,8 @@
   },
   "homepage": "https://github.com/reshufflehq/reshuffle-_CONNECTOR_NAME_-connector#readme",
   "dependencies": {
+    "intuit-oauth": "^3.0.2",
+    "node-quickbooks": "^2.0.37",
     "reshuffle-base-connector": "^0.0.11"
   },
   "devDependencies": {
@@ -38,6 +41,7 @@
     "prettier": "^2.1.1",
     "rimraf": "^3.0.2",
     "ts-node": "^9.0.0",
-    "typescript": "^4.0.2"
+    "typescript": "^4.0.2",
+    "dotenv": "^8.2.0"
   }
 }
