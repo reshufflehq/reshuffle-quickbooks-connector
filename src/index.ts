@@ -266,7 +266,6 @@ export default class QuickbooksConnector extends BaseHttpConnector<
       realmID: this.options.realmId,
       token: newToken,
     })
-    console.log('storeTokenAndSetClient', newToken)
     await this.setClient(newToken)
   }
 
