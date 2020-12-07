@@ -10,9 +10,9 @@
 
 This package contains a [Reshuffle](https://github.com/reshufflehq/reshuffle)
 connector to connect [QuickBooks Online app APIs](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/most-commonly-used/account).
+This connector requires to define a [Reshuffle Datastore](https://dev.reshuffle.com/docs/persistency) in order to maintain the Quickbooks access and refresh tokens. The connector takes care of refreshing the access token.
 
-The following example exposes an endpoint to return the data of Bill after an Update action.
-The access_token and refresh_token are stored in reshuffle DB and will be managed internally by the Reshuffle engine.
+The following example exposes an endpoint to return the data of Bill after an Update action, the access and refresh tokens are stored in reshuffle DB and will be managed internally by the Reshuffle engine.
 
 ```js
 const { Reshuffle, SQLStoreAdapter } = require('reshuffle')
@@ -62,13 +62,13 @@ app.start()
 ```js
 const app = new Reshuffle()
 const quickbooksConnector = new QuickbooksConnector(app, {
-  realmId: 'REALM_ID',
+  realmId: 'YOUR_REALM_ID',
   consumerKey: 'CONSUMER_KEY',
   consumerSecret: 'CONSUMER_SECRET',
-  sandbox: false, // sandbox or production. Default false. Can be set in process.env.NODE_ENV
+  sandbox: false, // Working environment, Sandbox or Production. Default false. Can be set in process.env.NODE_ENV
   debug: false, // Default false
-  callback: 'CALLBACK_PATH', // Default '/callbacks/quickbooks', One of the redirect URIs listed for this project in the developer dashboard.
-  webhookPath: 'WEBHOOK_PATH', // Default '/webhooks/quickbooks', Webhook Endpoint URL for this project in the developer dashboard
+  callback: 'CALLBACK_PATH', // Default '/callbacks/quickbooks', The path component of one of the redirect URIs listed for this project in the Quickbooks developer dashboard.
+  webhookPath: 'WEBHOOK_PATH', // Default '/webhooks/quickbooks', The path component of the Webhook Endpoint URI for this project in the developer dashboard
   baseUrl: 'BASE_RUNTIME_URL',
   webhooksVerifier: 'WEBHOOK_VERIFIER' // Webhook Verifier Token for this project in the developer dashboard
 })
@@ -76,14 +76,17 @@ const quickbooksConnector = new QuickbooksConnector(app, {
 
 `sandbox`, `debug`, `callback` and `webhookPath` are optional.
 
-More details about the fields are  described in [node-quickbooks](https://www.npmjs.com/package/node-quickbooks)
+More details about the fields are described in [node-quickbooks](https://www.npmjs.com/package/node-quickbooks)
 
-You can use the `webhookPath` to configure the url that Quickbooks hits when it makes its calls to
-For example - providing the above `baseURL` and `webhookPath='/webhook` will result in a complete webhook path of `https://my-reshuffle.com//webhook`.
-
+You can use the `webhookPath` to configure the url that Quickbooks hits when it makes its calls to.
+For example - providing if `baseURL=https://my-reshuffle.com` and `webhookPath='/webhook` will result in a complete webhook path of `https://my-reshuffle.com/webhook`.
 If you do not provide a `webhookPath`, Reshuffle will use the default webhook path for the connector which is `/webhooks/quickbooks`.
-
 You will need to register this webhook with Quickbooks. See [instructions](https://developer.intuit.com/app/developer/qbo/docs/develop/webhooks).
+
+You can use the `callback` to configure the redirect URI that your app serves to users upon authentication.
+For example - providing if `baseURL=https://my-reshuffle.com` and `callback='/callback` will result in a complete webhook path of `https://my-reshuffle.com/callback`.
+If you do not provide a `callback`, Reshuffle will use the default callback path for the connector which is `/callbacks/quickbooks`.
+You will need to register this callback with Quickbooks. See more details about [authentication](https://developer.intuit.com/app/developer/qbo/docs/develop/authentication-and-authorization/oauth-2.0).
 
 ### <a name="events"></a> Events
 
@@ -241,6 +244,7 @@ _Example:_
 
 ```typescript
 const sdk = await quickbooksConnector.sdk()
-sdk.getCompanyInfo('REALM_ID', function(err, result) {
+sdk.getCompanyInfo('YOUR_REALM_ID', function(err, result) {
   console.log('Result: ', JSON.stringify(result))
+}
 ```
