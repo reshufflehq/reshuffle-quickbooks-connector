@@ -2,6 +2,7 @@ const dotenv = require('dotenv')
 dotenv.config()
 import { Reshuffle, BaseHttpConnector, EventConfiguration } from 'reshuffle-base-connector'
 import { Request, Response } from 'express'
+import cron from 'node-cron'
 const OAuthClient = require('intuit-oauth')
 var crypto = require("crypto");
 
@@ -67,6 +68,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     if (Object.keys(this.eventConfigurations).length) {
       this.webhookPath = this.options.webhookPath || DEFAULT_WEBHOOK_PATH
       this.app.registerHTTPDelegate(this.webhookPath, this)
+      this.loopRefresh()
     }
   }
 
@@ -88,8 +90,8 @@ export default class QuickbooksConnector extends BaseHttpConnector<
 
   // Your actions
   // Actions will have to call getValidClient() in order to validate and refresh token if needed.
-  async sdk() {
-    return await this.getValidClient()
+  sdk() {
+    return this.client
   }
 
   // Store functions
@@ -115,6 +117,16 @@ export default class QuickbooksConnector extends BaseHttpConnector<
 
   getTokenKey() {
     return `${TOKEN_KEY_PREFIX}${this.options.realmId || 'default'}`
+  }
+
+
+  async loopRefresh() {
+    this.refreshTokenIfNeeded()
+    // check every 30 seconds
+    const task = cron.schedule('*/30 * * * * *', () => {
+      this.refreshTokenIfNeeded()
+    })
+    task.start()
   }
 
   // Token and Client
@@ -151,16 +163,20 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     return false
   }
 
-  async getValidClient() {
+  async refreshTokenIfNeeded() {
     let dbToken = await this.getQBToken()
     if (!dbToken) {
       console.error(`refreshTokenIfNeeded, stored token not found for ${this.options.realmId}`)
       return
     }
-    this.oauthClient.setToken(dbToken.token)
-    if (!this.oauthClient.isAccessTokenValid()) {
-      console.log('Before refreshing')
+    // this.oauthClient.setToken(dbToken.token)
+    const expiry = Number(dbToken.token.createdAt) + Number(dbToken.token.expires_in) * 1000
+    const needRefresh = (expiry - 120 * 1000) < Date.now() // 2 minutes before token is expired
+
+    if (needRefresh) {
+      console.log('Before refreshing', dbToken.token)
       try {
+        this.oauthClient.setToken(dbToken.token)
         const authResponse = await this.oauthClient.refresh()
         await this.storeTokenAndSetClient(authResponse)
         console.log('Token is refreshed')
@@ -212,8 +228,6 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     }
     // Validates the payload with the intuit-signature hash
     var hash = crypto.createHmac('sha256', this.options.webhooksVerifier).update(webhookPayload).digest('base64')
-    console.log("hash", hash)
-    console.log("signature", signature)
     if (signature !== hash) {
       return res.sendStatus(401)
     }
@@ -247,11 +261,12 @@ export default class QuickbooksConnector extends BaseHttpConnector<
 
   async storeTokenAndSetClient(authResponse: any) {
     const newToken = authResponse.getJson()
-    newToken.createdAt = Date.now() // createdAt is not retrieved when creating/refreshing token
+    newToken.createdAt = Date.now() // createdAt is not retrieved when creating/refreshing token    
     await this.storeQBToken({
       realmID: this.options.realmId,
       token: newToken,
     })
+    console.log('storeTokenAndSetClient', newToken)
     await this.setClient(newToken)
   }
 

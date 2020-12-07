@@ -28,7 +28,9 @@
   },
   "homepage": "https://github.com/reshufflehq/reshuffle-_CONNECTOR_NAME_-connector#readme",
   "dependencies": {
+    "@types/node-cron": "^2.0.3",
     "intuit-oauth": "^3.0.2",
+    "node-cron": "^2.0.3",
     "node-quickbooks": "^2.0.37",
     "reshuffle-base-connector": "^0.0.11"
   },
