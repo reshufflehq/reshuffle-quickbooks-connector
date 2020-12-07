@@ -14,8 +14,6 @@ export interface QuickbooksConnectorConfigOptions {
   realmId: string
   consumerKey: string
   consumerSecret: string
-  oauthToken: string
-  refreshToken: string
   sandbox?: boolean
   debug?: boolean
   callback?: string 
@@ -59,8 +57,9 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     super(app, options, id)
     options.sandbox = options.sandbox || (process.env.NODE_ENV != 'production')
     options.debug = options.debug || false
+    options.callback = options.callback || DEFAULT_OAUTH_CALLBACK_PATH
     this.options = options
-    this.oauthClient = this.createClientAuthURL(false)
+    this.oauthClient = this.createClientAuthURL(options.sandbox)
     this.app.registerHTTPDelegate(options.callback || DEFAULT_OAUTH_CALLBACK_PATH, this)
   }
 
@@ -162,8 +161,8 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     if (!this.oauthClient.isAccessTokenValid()) {
       console.log('Before refreshing')
       try {
-        const authResponse = await this.oauthClient.refreshUsingToken(dbToken.refreshToken)
-        this.storeTokenAndSetClient(authResponse)
+        const authResponse = await this.oauthClient.refresh()
+        await this.storeTokenAndSetClient(authResponse)
         console.log('Token is refreshed')
       }
       catch (e: any) {
@@ -181,7 +180,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     } else if (req.query.realmId) { // oauth callback
       try {
         const authResponse = await this.oauthClient.createToken(req.url)
-        this.storeTokenAndSetClient(authResponse)
+        await this.storeTokenAndSetClient(authResponse)
       }
       catch (e: any) {
         console.error('The error message is :',e)
