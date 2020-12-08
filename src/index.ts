@@ -31,7 +31,7 @@ export interface QuickBookTokenWrapper {
 }
 
 export interface QuickbooksConnectorEventOptions {
-  action: QBAction
+  type: QBEventType
 }
 
 export interface QBEvent {
@@ -50,36 +50,34 @@ export default class QuickbooksConnector extends BaseHttpConnector<
 
   private client: any
   private readonly oauthClient: any
-  private readonly options: QuickbooksConnectorConfigOptions
   private webhookPath = ''
 
   // TODO validate paths, trim strings
   constructor(app: Reshuffle, options: QuickbooksConnectorConfigOptions, id?: string) {
     super(app, options, id)
-    options.sandbox = options.sandbox || (process.env.NODE_ENV != 'production')
-    options.debug = options.debug || false
-    options.callback = options.callback || DEFAULT_OAUTH_CALLBACK_PATH
-    this.options = options
-    this.oauthClient = this.createClientAuthURL(options.sandbox)
+    this.configOptions.sandbox = options.sandbox || (process.env.NODE_ENV != 'production')
+    this.configOptions.debug = options.debug || false
+    this.configOptions.callback = options.callback || DEFAULT_OAUTH_CALLBACK_PATH
+    this.oauthClient = this.createClientAuthURL(this.configOptions.sandbox)
     this.app.registerHTTPDelegate(options.callback || DEFAULT_OAUTH_CALLBACK_PATH, this)
   }
 
   onStart(): void {
     if (Object.keys(this.eventConfigurations).length) {
-      this.webhookPath = this.options.webhookPath || DEFAULT_WEBHOOK_PATH
+      this.webhookPath = this.configOptions.webhookPath || DEFAULT_WEBHOOK_PATH
       this.app.registerHTTPDelegate(this.webhookPath, this)
       this.loopRefresh()
     }
   }
 
-  // Your events
+  // Events
   on(
     options: QuickbooksConnectorEventOptions,
     handler: any,
     eventId: string,
   ): EventConfiguration {
     if (!eventId) {
-      eventId = `Quickbooks/${options.action}/${this.id}`
+      eventId = `Quickbooks/${options.type}/${this.id}`
     }
     const event = new EventConfiguration(eventId, this, options)
     this.eventConfigurations[event.id] = event
@@ -88,39 +86,36 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     return event
   }
 
-  // Your actions
-  // Actions will have to call getValidClient() in order to validate and refresh token if needed.
-  sdk() {
+  // Actions
+  // Actions will have to call isInStore() in order to set the client and refresh token if needed.
+  async sdk() {
+    await this.isInStore()
     return this.client
   }
 
   // Store functions
-  async getQBToken(): Promise<any> {
+  private async getQBToken(): Promise<any> {
     const dbToken = await this.app.getPersistentStore().get(this.getTokenKey())
-    return new Promise((resolve) => {
-      resolve(dbToken)
-    })
+    return dbToken
   }
 
-  async storeQBToken(wrapper: QuickBookTokenWrapper): Promise<any> {
+  private async storeQBToken(wrapper: QuickBookTokenWrapper): Promise<any> {
     let newToken = {
-      realmID: this.options.realmId,
+      realmID: this.configOptions.realmId,
       token: wrapper.token,
       access_expire_timestamp: wrapper.access_expire_timestamp,
       refresh_expire_timestamp: wrapper.refresh_expire_timestamp
     }
     const dbToken = await this.app.getPersistentStore().set(this.getTokenKey(), newToken)
-    return new Promise((resolve) => {
-      resolve(dbToken)
-    })
+    return dbToken
   }
 
-  getTokenKey() {
-    return `${TOKEN_KEY_PREFIX}${this.options.realmId || 'default'}`
+  private getTokenKey() {
+    return `${TOKEN_KEY_PREFIX}${this.configOptions.realmId || 'default'}`
   }
 
 
-  async loopRefresh() {
+  private async loopRefresh() {
     this.refreshTokenIfNeeded()
     // check every 30 seconds
     const task = cron.schedule('*/30 * * * * *', () => {
@@ -130,7 +125,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   }
 
   // Token and Client
-  createClientAuthURL(sandbox: boolean) {
+  private createClientAuthURL(sandbox: boolean) {
     let inStore = false
     this.isInStore().then((value) => { inStore = value })
     if (inStore) return
@@ -138,10 +133,10 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     // TODO: Save this so we can match on return..
     const state = crypto.randomBytes(20).toString('hex')
     const oauthClient = new OAuthClient({
-      clientId: this.options.consumerKey,
-      clientSecret: this.options.consumerSecret,
+      clientId: this.configOptions.consumerKey,
+      clientSecret: this.configOptions.consumerSecret,
       environment: sandbox ? 'sandbox' : 'production',
-      redirectUri: this.options.baseUrl + this.options.callback,
+      redirectUri: this.configOptions.baseUrl + this.configOptions.callback,
     })
     const authUri = oauthClient.authorizeUri({
       scope: [OAuthClient.scopes.Accounting, OAuthClient.scopes.OpenId],
@@ -154,22 +149,21 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     return oauthClient
   }
 
-  async isInStore() {
+  private async isInStore() {
     const dbToken = await this.getQBToken()
     if (dbToken) {
-      await this.setClient(dbToken.token)
+      this.setClient(dbToken.token)
       return true
     }
     return false
   }
 
-  async refreshTokenIfNeeded() {
+  private async refreshTokenIfNeeded() {
     let dbToken = await this.getQBToken()
     if (!dbToken) {
-      console.error(`refreshTokenIfNeeded, stored token not found for ${this.options.realmId}`)
+      console.error(`refreshTokenIfNeeded, stored token not found for ${this.configOptions.realmId}`)
       return
     }
-    // this.oauthClient.setToken(dbToken.token)
     const expiry = Number(dbToken.token.createdAt) + Number(dbToken.token.expires_in) * 1000
     const needRefresh = (expiry - 120 * 1000) < Date.now() // 2 minutes before token is expired
 
@@ -227,56 +221,51 @@ export default class QuickbooksConnector extends BaseHttpConnector<
       return res.sendStatus(200)
     }
     // Validates the payload with the intuit-signature hash
-    var hash = crypto.createHmac('sha256', this.options.webhooksVerifier).update(webhookPayload).digest('base64')
+    var hash = crypto.createHmac('sha256', this.configOptions.webhooksVerifier).update(webhookPayload).digest('base64')
     if (signature !== hash) {
       return res.sendStatus(401)
     }
 
-    for (var i = 0; i < req.body.eventNotifications.length; i++) {
-      var entities = req.body.eventNotifications[i].dataChangeEvent.entities
-      var realmID = req.body.eventNotifications[i].realmId
-      for (var j = 0; j < entities.length; j++) {
-        const ev: QBEvent = {
-          'realmId': realmID,
-          'name': entities[i].name,
-          'id': entities[i].id,
-          'operation': entities[i].operation,
-          'lastUpdated': entities[i].lastUpdated,
-          'action': `${entities[i].name}/${entities[i].operation}`
-        }
-        console.log("notification :" + JSON.stringify(ev))
-
-        for (const ec of Object.values(this.eventConfigurations)) {
-          const storeAction = ec.options.action
-          const incoming = ev.action
-          if (storeAction == incoming) {
-            await this.app.handleEvent(ec.id, ev)
-            return
+    for(const eventNotification of req.body.eventNotifications) {
+      const {realmId, dataChangeEvent: {entities}} = eventNotification
+      for(const entity of entities) {    
+        entity.action = `${entity.name}/${entity.operation}`
+        const eventsToExecute = Object.values(this.eventConfigurations)
+          .filter((e => e.options.type === entity.action))
+          for(const event of eventsToExecute) {
+            const ev: QBEvent = {
+            'realmId': realmId,
+            'name': entity.name,
+            'id': entity.id,
+            'operation': entity.operation,
+            'lastUpdated': entity.lastUpdated,
+            'action': entity.action
           }
+          await this.app.handleEvent(event.id, ev)
         }
       }
     }
-    return res.sendStatus(200)
+    return
   } 
 
-  async storeTokenAndSetClient(authResponse: any) {
+  private async storeTokenAndSetClient(authResponse: any) {
     const newToken = authResponse.getJson()
     newToken.createdAt = Date.now() // createdAt is not retrieved when creating/refreshing token    
     await this.storeQBToken({
-      realmID: this.options.realmId,
+      realmID: this.configOptions.realmId,
       token: newToken,
     })
     await this.setClient(newToken)
   }
 
-  async setClient(token: any) {
+  private setClient(token: any) {
     this.client = new QuickBooks(
-      this.options.consumerKey,
-      this.options.consumerSecret,
+      this.configOptions.consumerKey,
+      this.configOptions.consumerSecret,
       token.access_token,
       false,                // no token secret for oAuth 2.0
-      this.options.realmId,
-      this.options.sandbox, // use the sandbox?
+      this.configOptions.realmId,
+      this.configOptions.sandbox, // use the sandbox?
       false,                // enable debugging?
       null,                 // set minorversion, or null for the latest version
       '2.0',                //oAuth version
@@ -284,7 +273,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   }
 }
 
-export type QBAction =
+export type QBEventType =
   | 'Account/Delete'
   | 'Account/Merge'
   | 'Account/Create'
