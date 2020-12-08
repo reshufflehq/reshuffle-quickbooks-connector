@@ -10,7 +10,7 @@
 
 This package contains a [Reshuffle](https://github.com/reshufflehq/reshuffle)
 connector to connect [QuickBooks Online app APIs](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/most-commonly-used/account).
-This connector requires to define a [Reshuffle Datastore](https://dev.reshuffle.com/docs/persistency) in order to maintain the Quickbooks access and refresh tokens. The connector takes care of refreshing the access token.
+This connector requires to define a [Reshuffle Datastore](https://dev.reshuffle.com/docs/persistency) in order to maintain the Quickbooks access and refresh tokens, the Datastore can be in memory, file or Database. The connector takes care of refreshing the access token.
 
 The following example exposes an endpoint to return the data of Bill after an Update action, the access and refresh tokens are stored in reshuffle DB and will be managed internally by the Reshuffle engine.
 
@@ -38,11 +38,11 @@ const quickbooksConnector = new QuickbooksConnector(app, {
   webhooksVerifier: 'WEBHOOK_VERIFIER'
 })
 
-quickbooksConnector.on({ action: 'Bill/Update' }, async (event, app) => {
+quickbooksConnector.on({ type: 'Bill/Update' }, async (event, app) => {
   console.log('Bill/Update event ')
   console.log(event.id)
   console.log(event.name)
-  console.log(event.action)
+  console.log(event.operation)
 })
 
 app.start()
@@ -52,9 +52,13 @@ app.start()
 
 [Configuration Options](#configuration)
 
-[Events](#events)
+#### Connector Events
 
-[Actions](#actions)
+[Listening to Monday events](#listen)
+
+#### Connector Actions
+
+[SDK](#sdk) - Retrieve a full Monday sdk object
 
 
 ### <a name="configuration"></a> Configuration options
@@ -90,17 +94,19 @@ You will need to register this callback with Quickbooks. See more details about 
 
 ### <a name="events"></a> Events
 
+#### <a name="listen"></a> Listening to Quickbooks events
+
 To listen to events happening in Quickbooks, you'll need to capture them with the connector's `on`
 function, providing a `QuickbooksConnectorEventOptions` to it.
 
 
 ```typescript
 interface QuickbooksConnectorEventOptions {
-  action: QBAction // See bellow 
+  type: QBEventType // See bellow 
 }
 
 // Where...
-type QBAction =
+type QBEventType =
   | 'Account/Delete'
   | 'Account/Merge'
   | 'Account/Create'
@@ -222,17 +228,19 @@ interface QBEvent {
 _Example:_
 
 ```typescript
-quickbooksConnector.on({ action: 'Bill/Update' }, async (event, app) => {
+quickbooksConnector.on({ type: 'Bill/Update' }, async (event, app) => {
   console.log('Bill/Update event ')
   console.log(event.id)
   console.log(event.name)
-  console.log(event.action)
+  console.log(event.operation)
 })
 ```
 
 The description of fields and events can be found [here](hhttps://developer.intuit.com/app/developer/qbo/docs/develop/webhooks/entities-and-operations-supported)
 
 ### <a name="actions"></a> Actions
+
+#### <a name="sdk"></a> sdk
 
 Returns an object providing full access to the Quickbooks APIs
 
