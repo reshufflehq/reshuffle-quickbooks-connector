@@ -54,11 +54,11 @@ app.start()
 
 #### Connector Events
 
-[Listening to Monday events](#listen)
+[Listening to Quickbooks events](#listen)
 
 #### Connector Actions
 
-[SDK](#sdk) - Retrieve a full Monday sdk object
+[SDK](#sdk) - Retrieve a full Quickbooks sdk object
 
 
 ### <a name="configuration"></a> Configuration options
@@ -83,12 +83,12 @@ const quickbooksConnector = new QuickbooksConnector(app, {
 More details about the fields are described in [node-quickbooks](https://www.npmjs.com/package/node-quickbooks)
 
 You can use the `webhookPath` to configure the url that Quickbooks hits when it makes its calls to.
-For example - providing if `baseURL=https://my-reshuffle.com` and `webhookPath='/webhook` will result in a complete webhook path of `https://my-reshuffle.com/webhook`.
+For example - providing `baseURL=https://my-reshuffle.com` and `webhookPath='/webhook` will result in a complete webhook path of `https://my-reshuffle.com/webhook`.
 If you do not provide a `webhookPath`, Reshuffle will use the default webhook path for the connector which is `/webhooks/quickbooks`.
 You will need to register this webhook with Quickbooks. See [instructions](https://developer.intuit.com/app/developer/qbo/docs/develop/webhooks).
 
 You can use the `callback` to configure the redirect URI that your app serves to users upon authentication.
-For example - providing if `baseURL=https://my-reshuffle.com` and `callback='/callback` will result in a complete webhook path of `https://my-reshuffle.com/callback`.
+For example - providing `baseURL=https://my-reshuffle.com` and `callback='/callback` will result in a complete webhook path of `https://my-reshuffle.com/callback`.
 If you do not provide a `callback`, Reshuffle will use the default callback path for the connector which is `/callbacks/quickbooks`.
 You will need to register this callback with Quickbooks. See more details about [authentication](https://developer.intuit.com/app/developer/qbo/docs/develop/authentication-and-authorization/oauth-2.0).
 
@@ -240,9 +240,12 @@ The description of fields and events can be found [here](hhttps://developer.intu
 
 ### <a name="actions"></a> Actions
 
+The actions are provided via the [sdk](#sdk).
+
 #### <a name="sdk"></a> sdk
 
-Returns an object providing full access to the Quickbooks APIs
+Returns an object providing full access to the Quickbooks APIs.
+Full list of available actions in [node-quickbooks](https://www.npmjs.com/package/node-quickbooks)
 
 ```typescript
 const sdk = await connector.sdk()

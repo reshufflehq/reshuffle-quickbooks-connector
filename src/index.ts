@@ -17,7 +17,7 @@ export interface QuickbooksConnectorConfigOptions {
   consumerSecret: string
   sandbox?: boolean
   debug?: boolean
-  callback?: string 
+  callback?: string
   webhookPath?: string
   baseUrl: string
   webhooksVerifier: string
@@ -168,7 +168,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     const needRefresh = (expiry - 120 * 1000) < Date.now() // 2 minutes before token is expired
 
     if (needRefresh) {
-      console.log('Before refreshing', dbToken.token)
+      console.log('Before refreshing')
       try {
         this.oauthClient.setToken(dbToken.token)
         const authResponse = await this.oauthClient.refresh()
@@ -193,7 +193,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
         await this.storeTokenAndSetClient(authResponse)
       }
       catch (e: any) {
-        console.error('The error message is :',e)
+        console.error('The error message is :', e)
         console.error(e.intuit_tid)
       }
       /* Do we need this
@@ -226,27 +226,19 @@ export default class QuickbooksConnector extends BaseHttpConnector<
       return res.sendStatus(401)
     }
 
-    for(const eventNotification of req.body.eventNotifications) {
-      const {realmId, dataChangeEvent: {entities}} = eventNotification
-      for(const entity of entities) {    
+    for (const eventNotification of req.body.eventNotifications) {
+      const { realmId, dataChangeEvent: { entities } } = eventNotification
+      for (const entity of entities) {
         entity.action = `${entity.name}/${entity.operation}`
         const eventsToExecute = Object.values(this.eventConfigurations)
           .filter((e => e.options.type === entity.action))
-          for(const event of eventsToExecute) {
-            const ev: QBEvent = {
-            'realmId': realmId,
-            'name': entity.name,
-            'id': entity.id,
-            'operation': entity.operation,
-            'lastUpdated': entity.lastUpdated,
-            'action': entity.action
-          }
-          await this.app.handleEvent(event.id, ev)
+        for (const event of eventsToExecute) {
+          await this.app.handleEvent(event.id, entity)
         }
       }
     }
     return
-  } 
+  }
 
   private async storeTokenAndSetClient(authResponse: any) {
     const newToken = authResponse.getJson()
