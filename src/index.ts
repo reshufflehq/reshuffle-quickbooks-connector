@@ -1,12 +1,12 @@
-const dotenv = require('dotenv')
+import dotenv from 'dotenv'
 dotenv.config()
 import { Reshuffle, BaseHttpConnector, EventConfiguration } from 'reshuffle-base-connector'
 import { Request, Response } from 'express'
 import cron from 'node-cron'
-const OAuthClient = require('intuit-oauth')
-var crypto = require("crypto");
+import OAuthClient from 'intuit-oauth'
+import crypto from 'crypto'
 
-const QuickBooks = require('node-quickbooks')
+import QuickBooks from 'node-quickbooks'
 const TOKEN_KEY_PREFIX = 'quickbooks/token/'
 const DEFAULT_OAUTH_CALLBACK_PATH = '/callbacks/quickbooks'
 const DEFAULT_WEBHOOK_PATH = '/webhooks/quickbooks'
@@ -25,7 +25,7 @@ export interface QuickbooksConnectorConfigOptions {
 
 export interface QuickBookTokenWrapper {
   realmID?: string
-  token?: any,
+  token?: any
   access_expire_timestamp?: any
   refresh_expire_timestamp?: any
 }
@@ -46,8 +46,7 @@ export interface QBEvent {
 export default class QuickbooksConnector extends BaseHttpConnector<
   QuickbooksConnectorConfigOptions,
   QuickbooksConnectorEventOptions
-  > {
-
+> {
   private client: any
   private readonly oauthClient: any
   private webhookPath = ''
@@ -55,7 +54,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   // TODO validate paths, trim strings
   constructor(app: Reshuffle, options: QuickbooksConnectorConfigOptions, id?: string) {
     super(app, options, id)
-    this.configOptions.sandbox = options.sandbox || (process.env.NODE_ENV != 'production')
+    this.configOptions.sandbox = options.sandbox || process.env.NODE_ENV != 'production'
     this.configOptions.debug = options.debug || false
     this.configOptions.callback = options.callback || DEFAULT_OAUTH_CALLBACK_PATH
     this.oauthClient = this.createClientAuthURL(this.configOptions.sandbox)
@@ -71,11 +70,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   }
 
   // Events
-  on(
-    options: QuickbooksConnectorEventOptions,
-    handler: any,
-    eventId: string,
-  ): EventConfiguration {
+  on(options: QuickbooksConnectorEventOptions, handler: any, eventId: string): EventConfiguration {
     if (!eventId) {
       eventId = `Quickbooks/${options.type}/${this.id}`
     }
@@ -100,11 +95,11 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   }
 
   private async storeQBToken(wrapper: QuickBookTokenWrapper): Promise<any> {
-    let newToken = {
+    const newToken = {
       realmID: this.configOptions.realmId,
       token: wrapper.token,
       access_expire_timestamp: wrapper.access_expire_timestamp,
-      refresh_expire_timestamp: wrapper.refresh_expire_timestamp
+      refresh_expire_timestamp: wrapper.refresh_expire_timestamp,
     }
     const dbToken = await this.app.getPersistentStore().set(this.getTokenKey(), newToken)
     return dbToken
@@ -113,7 +108,6 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   private getTokenKey() {
     return `${TOKEN_KEY_PREFIX}${this.configOptions.realmId || 'default'}`
   }
-
 
   private async loopRefresh() {
     this.refreshTokenIfNeeded()
@@ -127,7 +121,9 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   // Token and Client
   private createClientAuthURL(sandbox: boolean) {
     let inStore = false
-    this.isInStore().then((value) => { inStore = value })
+    this.isInStore().then((value) => {
+      inStore = value
+    })
     if (inStore) return
 
     // TODO: Save this so we can match on return..
@@ -159,13 +155,15 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   }
 
   private async refreshTokenIfNeeded() {
-    let dbToken = await this.getQBToken()
+    const dbToken = await this.getQBToken()
     if (!dbToken) {
-      console.error(`refreshTokenIfNeeded, stored token not found for ${this.configOptions.realmId}`)
+      console.error(
+        `refreshTokenIfNeeded, stored token not found for ${this.configOptions.realmId}`,
+      )
       return
     }
     const expiry = Number(dbToken.token.createdAt) + Number(dbToken.token.expires_in) * 1000
-    const needRefresh = (expiry - 120 * 1000) < Date.now() // 2 minutes before token is expired
+    const needRefresh = expiry - 120 * 1000 < Date.now() // 2 minutes before token is expired
 
     if (needRefresh) {
       console.log('Before refreshing')
@@ -174,8 +172,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
         const authResponse = await this.oauthClient.refresh()
         await this.storeTokenAndSetClient(authResponse)
         console.log('Token is refreshed')
-      }
-      catch (e: any) {
+      } catch (e: any) {
         console.error('Refresh Token Error:', e)
         console.error(e.intuit_tid)
       }
@@ -187,12 +184,12 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   async handle(req: Request, res: Response): Promise<boolean> {
     if (req.route.path === this.webhookPath) {
       this.handleWebhook(req, res)
-    } else if (req.query.realmId) { // oauth callback
+    } else if (req.query.realmId) {
+      // oauth callback
       try {
         const authResponse = await this.oauthClient.createToken(req.url)
         await this.storeTokenAndSetClient(authResponse)
-      }
-      catch (e: any) {
+      } catch (e: any) {
         console.error('The error message is :', e)
         console.error(e.intuit_tid)
       }
@@ -202,15 +199,15 @@ export default class QuickbooksConnector extends BaseHttpConnector<
         this.options.realmId = realmId
       }*/
     } else {
-      res.send({ 'text': 'Error' })
+      res.send({ text: 'Error' })
     }
     res.sendStatus(200)
     return true
   }
 
   private async handleWebhook(req: Request, res: Response) {
-    var webhookPayload = JSON.stringify(req.body)
-    var signature = req.get('intuit-signature')
+    const webhookPayload = JSON.stringify(req.body)
+    const signature = req.get('intuit-signature')
 
     // if signature is empty return 401
     if (!signature) {
@@ -221,17 +218,24 @@ export default class QuickbooksConnector extends BaseHttpConnector<
       return res.sendStatus(200)
     }
     // Validates the payload with the intuit-signature hash
-    var hash = crypto.createHmac('sha256', this.configOptions.webhooksVerifier).update(webhookPayload).digest('base64')
+    const hash = crypto
+      .createHmac('sha256', this.configOptions.webhooksVerifier)
+      .update(webhookPayload)
+      .digest('base64')
     if (signature !== hash) {
       return res.sendStatus(401)
     }
 
     for (const eventNotification of req.body.eventNotifications) {
-      const { realmId, dataChangeEvent: { entities } } = eventNotification
+      const {
+        realmId,
+        dataChangeEvent: { entities },
+      } = eventNotification
       for (const entity of entities) {
         entity.action = `${entity.name}/${entity.operation}`
-        const eventsToExecute = Object.values(this.eventConfigurations)
-          .filter((e => e.options.type === entity.action))
+        const eventsToExecute = Object.values(this.eventConfigurations).filter(
+          (e) => e.options.type === entity.action,
+        )
         for (const event of eventsToExecute) {
           await this.app.handleEvent(event.id, entity)
         }
@@ -242,7 +246,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
 
   private async storeTokenAndSetClient(authResponse: any) {
     const newToken = authResponse.getJson()
-    newToken.createdAt = Date.now() // createdAt is not retrieved when creating/refreshing token    
+    newToken.createdAt = Date.now() // createdAt is not retrieved when creating/refreshing token
     await this.storeQBToken({
       realmID: this.configOptions.realmId,
       token: newToken,
@@ -255,13 +259,14 @@ export default class QuickbooksConnector extends BaseHttpConnector<
       this.configOptions.consumerKey,
       this.configOptions.consumerSecret,
       token.access_token,
-      false,                // no token secret for oAuth 2.0
+      false, // no token secret for oAuth 2.0
       this.configOptions.realmId,
       this.configOptions.sandbox, // use the sandbox?
-      false,                // enable debugging?
-      null,                 // set minorversion, or null for the latest version
-      '2.0',                //oAuth version
-      token.refresh_token)
+      false, // enable debugging?
+      null, // set minorversion, or null for the latest version
+      '2.0', //oAuth version
+      token.refresh_token,
+    )
   }
 }
 
