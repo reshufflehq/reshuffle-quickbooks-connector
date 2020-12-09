@@ -3,10 +3,10 @@ dotenv.config()
 import { Reshuffle, BaseHttpConnector, EventConfiguration } from 'reshuffle-base-connector'
 import { Request, Response } from 'express'
 import cron from 'node-cron'
-import OAuthClient from 'intuit-oauth'
+import OAuthClient = require('intuit-oauth');
 import crypto from 'crypto'
+import QuickBooks = require('node-quickbooks');
 
-import QuickBooks from 'node-quickbooks'
 const TOKEN_KEY_PREFIX = 'quickbooks/token/'
 const DEFAULT_OAUTH_CALLBACK_PATH = '/callbacks/quickbooks'
 const DEFAULT_WEBHOOK_PATH = '/webhooks/quickbooks'
