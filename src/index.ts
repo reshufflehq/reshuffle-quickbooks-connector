@@ -111,12 +111,6 @@ export default class QuickbooksConnector extends BaseHttpConnector<
 
   // Token and Client
   private createClientAuthURL(sandbox: boolean) {
-    let inStore = false
-    this.isInStore().then((value) => {
-      inStore = value
-    })
-    if (inStore) return
-
     const state = crypto.randomBytes(20).toString('hex')
     const oauthClient = new OAuthClient({
       clientId: this.configOptions.consumerKey,
