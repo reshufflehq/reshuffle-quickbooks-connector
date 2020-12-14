@@ -101,8 +101,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   }
 
   private async storeQBToken(wrapper: QuickBookTokenWrapper): Promise<any> {
-    const dbToken = await this.app.getPersistentStore().set(this.getTokenKey(), wrapper)
-    return dbToken
+    return await this.app.getPersistentStore().set(this.getTokenKey(), wrapper)
   }
 
   private getTokenKey() {
