@@ -3,9 +3,9 @@ dotenv.config()
 import { Reshuffle, BaseHttpConnector, EventConfiguration } from 'reshuffle-base-connector'
 import { Request, Response } from 'express'
 import cron from 'node-cron'
-import OAuthClient = require('intuit-oauth')
+import OAuthClient from 'intuit-oauth'
 import crypto from 'crypto'
-import QuickBooks = require('node-quickbooks')
+import QuickBooks from 'node-quickbooks'
 
 const TOKEN_KEY_PREFIX = 'quickbooks/token/'
 const DEFAULT_OAUTH_CALLBACK_PATH = '/callbacks/quickbooks'
@@ -50,6 +50,9 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   private client: any
   private readonly oauthClient: any
   private webhookPath = ''
+  private _timeout?: NodeJS.Timeout
+  // Check if refreshTokenWhenNeeded() was not already invoked from onStart() or handle()
+  private refreshIsRunning = false
 
   // TODO validate paths, trim strings
   constructor(app: Reshuffle, options: QuickbooksConnectorConfigOptions, id?: string) {
@@ -65,7 +68,10 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     if (Object.keys(this.eventConfigurations).length) {
       this.webhookPath = this.configOptions.webhookPath || DEFAULT_WEBHOOK_PATH
       this.app.registerHTTPDelegate(this.webhookPath, this)
-      this.loopRefresh()
+    }
+    if(!this.refreshIsRunning) {
+      this.refreshIsRunning = true
+      this.refreshTokenWhenNeeded()
     }
   }
 
@@ -82,7 +88,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   }
 
   // Actions
-  // Actions will have to call isInStore() in order to set the client and refresh token if needed.
+  // Actions will have to call isInStore() in order to set the client.
   async sdk() {
     await this.isInStore()
     return this.client
@@ -95,27 +101,12 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   }
 
   private async storeQBToken(wrapper: QuickBookTokenWrapper): Promise<any> {
-    const newToken = {
-      realmID: this.configOptions.realmId,
-      token: wrapper.token,
-      access_expire_timestamp: wrapper.access_expire_timestamp,
-      refresh_expire_timestamp: wrapper.refresh_expire_timestamp,
-    }
-    const dbToken = await this.app.getPersistentStore().set(this.getTokenKey(), newToken)
+    const dbToken = await this.app.getPersistentStore().set(this.getTokenKey(), wrapper)
     return dbToken
   }
 
   private getTokenKey() {
     return `${TOKEN_KEY_PREFIX}${this.configOptions.realmId || 'default'}`
-  }
-
-  private async loopRefresh() {
-    this.refreshTokenIfNeeded()
-    // check every 30 seconds
-    const task = cron.schedule('*/30 * * * * *', () => {
-      this.refreshTokenIfNeeded()
-    })
-    task.start()
   }
 
   // Token and Client
@@ -126,7 +117,6 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     })
     if (inStore) return
 
-    // TODO: Save this so we can match on return..
     const state = crypto.randomBytes(20).toString('hex')
     const oauthClient = new OAuthClient({
       clientId: this.configOptions.consumerKey,
@@ -137,11 +127,13 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     const authUri = oauthClient.authorizeUri({
       scope: [OAuthClient.scopes.Accounting, OAuthClient.scopes.OpenId],
       state,
-    }) // can be an array of multiple scopes ex : {scope:[OAuthClient.scopes.Accounting,OAuthClient.scopes.OpenId]
+    })
 
-    console.log(`===================== authUri =====================\n
-    ${authUri}
-    \n===================================================`)
+    console.log('==========================================================')
+    console.log('== Click the Auth URI below to authorize the connection ==')
+    console.log('======================== authUri =========================\n')
+    console.log(authUri)
+    console.log('\n==========================================================')
     return oauthClient
   }
 
@@ -154,50 +146,65 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     return false
   }
 
-  private async refreshTokenIfNeeded() {
-    const dbToken = await this.getQBToken()
-    if (!dbToken) {
-      console.error(
-        `refreshTokenIfNeeded, stored token not found for ${this.configOptions.realmId}`,
-      )
-      return
-    }
-    const expiry = Number(dbToken.token.createdAt) + Number(dbToken.token.expires_in) * 1000
-    const needRefresh = expiry - 120 * 1000 < Date.now() // 2 minutes before token is expired
-
-    if (needRefresh) {
-      console.log('Before refreshing')
-      try {
-        this.oauthClient.setToken(dbToken.token)
-        const authResponse = await this.oauthClient.refresh()
-        await this.storeTokenAndSetClient(authResponse)
-        console.log('Token is refreshed')
-      } catch (e: any) {
-        console.error('Refresh Token Error:', e)
-        console.error(e.intuit_tid)
+  private async refreshTokenWhenNeeded() {
+      const dbToken = await this.getQBToken()
+      if(!dbToken) {
+        this.refreshIsRunning = false
+        return
       }
+
+      const expiry = this.timeToRefreshToken(dbToken)
+      const self = this
+  
+      this._timeout = setTimeout(async function refresh(){
+        await self.refreshToken(dbToken.token)
+        self.refreshTokenWhenNeeded()
+      }, expiry)
+  }
+
+  /**
+   * expiry = createdAt + expires_in - now() - 2 minutes
+   * if expiry is negative - return 0 for imidiate refresh
+   */
+  private timeToRefreshToken(dbToken: any) {
+    let expiry = Number(dbToken.token.createdAt) + Number(dbToken.token.expires_in) * 1000
+    expiry = expiry - Date.now() - 120 * 1000
+    expiry = expiry > 0 ? expiry : 0
+    return expiry
+  }
+
+  private async refreshToken(token: any) {
+    console.log('Before refreshing')
+    try {
+      this.oauthClient.setToken(token)
+      const authResponse = await this.oauthClient.refresh()
+      await this.storeTokenAndSetClient(authResponse)
+      console.log('Token is refreshed')
+    } catch (e: any) {
+      console.error('Refresh Token Error:', e)
+      console.error(e.intuit_tid)
+      return false
     }
-    return this.client
+    return true
   }
 
   // Use to exchange code for token
   async handle(req: Request, res: Response): Promise<boolean> {
     if (req.route.path === this.webhookPath) {
-      this.handleWebhook(req, res)
+      await this.handleWebhook(req, res)
     } else if (req.query.realmId) {
       // oauth callback
       try {
         const authResponse = await this.oauthClient.createToken(req.url)
         await this.storeTokenAndSetClient(authResponse)
+        if(!this.refreshIsRunning) {
+          this.refreshIsRunning = true
+          this.refreshTokenWhenNeeded()
+        }
       } catch (e: any) {
         console.error('The error message is :', e)
         console.error(e.intuit_tid)
       }
-      /* Do we need this
-      const { state, realmId, code } = req.query
-      if (typeof realmId === "string") {
-        this.options.realmId = realmId
-      }*/
     } else {
       res.send({ text: 'Error' })
     }
@@ -251,7 +258,11 @@ export default class QuickbooksConnector extends BaseHttpConnector<
       realmID: this.configOptions.realmId,
       token: newToken,
     })
-    await this.setClient(newToken)
+    this.setClient(newToken)
+  }
+
+  onStop() {
+    this._timeout && clearInterval(this._timeout)
   }
 
   private setClient(token: any) {
