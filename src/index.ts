@@ -69,7 +69,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
       this.webhookPath = this.configOptions.webhookPath || DEFAULT_WEBHOOK_PATH
       this.app.registerHTTPDelegate(this.webhookPath, this)
     }
-    if(!this.refreshIsRunning) {
+    if (!this.refreshIsRunning) {
       this.refreshIsRunning = true
       this.refreshTokenWhenNeeded()
     }
@@ -140,19 +140,18 @@ export default class QuickbooksConnector extends BaseHttpConnector<
   }
 
   private async refreshTokenWhenNeeded() {
-      const dbToken = await this.getQBToken()
-      if(!dbToken) {
-        this.refreshIsRunning = false
-        return
-      }
+    const dbToken = await this.getQBToken()
+    if (!dbToken) {
+      this.refreshIsRunning = false
+      return
+    }
 
-      const expiry = this.timeToRefreshToken(dbToken)
-      const self = this
-  
-      this._timeout = setTimeout(async function refresh(){
-        await self.refreshToken(dbToken.token)
-        self.refreshTokenWhenNeeded()
-      }, expiry)
+    const expiry = this.timeToRefreshToken(dbToken)
+
+    this._timeout = setTimeout(async () => {
+      await this.refreshToken(dbToken.token)
+      this.refreshTokenWhenNeeded()
+    }, expiry)
   }
 
   /**
@@ -190,7 +189,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
       try {
         const authResponse = await this.oauthClient.createToken(req.url)
         await this.storeTokenAndSetClient(authResponse)
-        if(!this.refreshIsRunning) {
+        if (!this.refreshIsRunning) {
           this.refreshIsRunning = true
           this.refreshTokenWhenNeeded()
         }
