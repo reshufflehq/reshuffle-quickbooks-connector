@@ -2,7 +2,6 @@ import dotenv from 'dotenv'
 dotenv.config()
 import { Reshuffle, BaseHttpConnector, EventConfiguration } from 'reshuffle-base-connector'
 import { Request, Response } from 'express'
-import cron from 'node-cron'
 import OAuthClient from 'intuit-oauth'
 import crypto from 'crypto'
 import QuickBooks from 'node-quickbooks'
@@ -71,7 +70,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     }
     if (!this.refreshIsRunning) {
       this.refreshIsRunning = true
-      this.refreshTokenWhenNeeded()
+      this.scheduleTokenRefresh()
     }
   }
 
@@ -96,8 +95,7 @@ export default class QuickbooksConnector extends BaseHttpConnector<
 
   // Store functions
   private async getQBToken(): Promise<any> {
-    const dbToken = await this.app.getPersistentStore().get(this.getTokenKey())
-    return dbToken
+    return await this.app.getPersistentStore().get(this.getTokenKey())
   }
 
   private async storeQBToken(wrapper: QuickBookTokenWrapper): Promise<any> {
@@ -139,45 +137,45 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     return false
   }
 
-  private async refreshTokenWhenNeeded() {
+  private async scheduleTokenRefresh() {
     const dbToken = await this.getQBToken()
     if (!dbToken) {
       this.refreshIsRunning = false
       return
     }
 
-    const expiry = this.timeToRefreshToken(dbToken)
-
     this._timeout = setTimeout(async () => {
       await this.refreshToken(dbToken.token)
-      this.refreshTokenWhenNeeded()
-    }, expiry)
+      this.scheduleTokenRefresh()
+    }, this.timeToRefreshToken(dbToken))
   }
 
   /**
    * expiry = createdAt + expires_in - now() - 2 minutes
    * if expiry is negative - return 0 for imidiate refresh
    */
-  private timeToRefreshToken(dbToken: any) {
-    let expiry = Number(dbToken.token.createdAt) + Number(dbToken.token.expires_in) * 1000
-    expiry = expiry - Date.now() - 120 * 1000
-    expiry = expiry > 0 ? expiry : 0
-    return expiry
+  private timeToRefreshToken(dbToken: any): number{
+    let expiry = 0
+    try {
+      expiry = Number(dbToken.token.createdAt) + Number(dbToken.token.expires_in) * 1000  
+      expiry = expiry - Date.now() - 120 * 1000 // less 2 mins
+    } catch (error) {
+      expiry = 3480000 // Our default is 58 mins, less then the original 1 hour.
+    }
+    return expiry > 0 ? expiry : 0
   }
 
   private async refreshToken(token: any) {
-    console.log('Before refreshing')
+    console.log('Refreshing Quickbooks token')
     try {
       this.oauthClient.setToken(token)
       const authResponse = await this.oauthClient.refresh()
       await this.storeTokenAndSetClient(authResponse)
-      console.log('Token is refreshed')
+      console.log('Quickbooks token is refreshed')
     } catch (e: any) {
       console.error('Refresh Token Error:', e)
       console.error(e.intuit_tid)
-      return false
     }
-    return true
   }
 
   // Use to exchange code for token
@@ -191,10 +189,10 @@ export default class QuickbooksConnector extends BaseHttpConnector<
         await this.storeTokenAndSetClient(authResponse)
         if (!this.refreshIsRunning) {
           this.refreshIsRunning = true
-          this.refreshTokenWhenNeeded()
+          this.scheduleTokenRefresh()
         }
       } catch (e: any) {
-        console.error('The error message is :', e)
+        console.error('OAuth action failed. Error received:', e)
         console.error(e.intuit_tid)
       }
     } else {
