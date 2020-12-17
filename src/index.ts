@@ -158,10 +158,10 @@ export default class QuickbooksConnector extends BaseHttpConnector<
     let expiry = 0
     try {
       expiry = Number(dbToken.token.createdAt) + Number(dbToken.token.expires_in) * 1000  
-      expiry = expiry - Date.now() - 120 * 1000 // less 2 mins
     } catch (error) {
-      expiry = 3480000 // Our default is 58 mins, less then the original 1 hour.
+      expiry = 3600000 // Default is 60 mins.
     }
+    expiry = expiry - Date.now() - 120 * 1000 // less 2 mins
     return expiry > 0 ? expiry : 0
   }
 
