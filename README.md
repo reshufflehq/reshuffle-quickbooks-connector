@@ -2,13 +2,13 @@
 
 [Code](https://github.com/reshufflehq/reshuffle-quickbooks-connector) |
 [npm](https://www.npmjs.com/package/reshuffle-quickbooks-connector) |
-[Code sample](https://github.com/reshufflehq/reshuffle-quickbooks-connector/examples)
+[Code sample](https://github.com/reshufflehq/reshuffle/tree/master/examples/mixpanel)
 
 `npm install reshuffle-quickbooks-connector`
 
 ### Reshuffle Quickbooks Connector
 
-This package contains a [Reshuffle](https://github.com/reshufflehq/reshuffle)
+This package contains a [Reshuffle](https://reshuffle.com)
 connector to connect [QuickBooks Online app APIs](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/most-commonly-used/account).
 This connector requires to define a [Reshuffle Datastore](https://dev.reshuffle.com/docs/persistency) in order to maintain the Quickbooks access and refresh tokens, the Datastore can be in memory, file or Database. The connector takes care of refreshing the access token.
 
