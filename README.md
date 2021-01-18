@@ -8,9 +8,9 @@
 
 ### Reshuffle Quickbooks Connector
 
-This package contains a [Reshuffle](https://reshuffle.com)
+This package contains a [Reshuffle](https://github.com/reshufflehq/reshuffle)
 connector to connect [QuickBooks Online app APIs](https://developer.intuit.com/app/developer/qbo/docs/api/accounting/most-commonly-used/account).
-This connector requires to define a [Reshuffle Datastore](https://dev.reshuffle.com/docs/persistency) in order to maintain the Quickbooks access and refresh tokens, the Datastore can be in memory, file or Database. The connector takes care of refreshing the access token.
+This connector requires to define a [Reshuffle Datastore](https://reshuffle.com/docs/persistency) in order to maintain the Quickbooks access and refresh tokens, the Datastore can be in memory, file or Database. The connector takes care of refreshing the access token.
 
 The following example exposes an endpoint to return the data of Bill after an Update action, the access and refresh tokens are stored in reshuffle DB and will be managed internally by the Reshuffle engine.
 
