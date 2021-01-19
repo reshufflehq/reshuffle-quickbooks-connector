@@ -2,7 +2,7 @@
 
 [Code](https://github.com/reshufflehq/reshuffle-quickbooks-connector) |
 [npm](https://www.npmjs.com/package/reshuffle-quickbooks-connector) |
-[Code sample](https://github.com/reshufflehq/reshuffle/tree/master/examples/mixpanel)
+[Code sample](https://github.com/reshufflehq/reshuffle/tree/master/examples/quickbooks)
 
 `npm install reshuffle-quickbooks-connector`
 
